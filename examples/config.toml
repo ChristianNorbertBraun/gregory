@@ -1,0 +1,22 @@
+# ~/.config/gregory/config.toml of the service user. See gregory/config.py for every setting.
+
+[update]
+repo = "your-name/gregory"
+publisher = "your-github-login"
+
+[ask]
+backend = "claude"
+daily_limit = 30
+
+[backends.claude]
+type = "claude-code"
+model = "opus"
+
+# Skills the clients may name in a request, fetched from one repository (see gregory/skills.py).
+#[skills]
+#repo = "git@github.com:your-name/agent-skills.git"
+#dir = "/srv/agent-skills"
+
+# Files a client hands over for one request: <dir>/<client name>/...
+#[handoff]
+#dir = "/srv/handoff"

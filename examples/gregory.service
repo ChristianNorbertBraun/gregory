@@ -1,0 +1,20 @@
+[Unit]
+Description=Gregory (an expert model that other agents may ask)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+Environment=PYTHONPATH=%h/current
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=%h
+ExecStart=/usr/bin/python3 -m gregory serve
+Restart=on-failure
+RestartSec=10
+MemoryMax=3G
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

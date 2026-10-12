@@ -1,0 +1,12 @@
+[Unit]
+Description=Gregory: fetch, check and publish the skills
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PYTHONPATH=%h/current
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=%h
+ExecStart=/usr/bin/python3 -m gregory sync-skills
+NoNewPrivileges=yes

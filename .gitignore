@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+# secrets and local state must never be committed
+token
+token-*
+skills-key*
+known_hosts
+usage.json
+.env
+.env.*
+.DS_Store
