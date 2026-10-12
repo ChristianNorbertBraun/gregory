@@ -174,6 +174,11 @@ class SyncTests(Temp):
         self.assertIn(f"-i {self.key}", env["GIT_SSH_COMMAND"])
         self.assertIn("BatchMode=yes", env["GIT_SSH_COMMAND"])
 
+    def test_an_area_without_a_skill_is_published_too(self):
+        self.assertEqual(self.sync(FakeGit(files={"assistant/access.toml": 'clients = ["merlin"]\n', "README.md": "x"})),
+                         "skills updated to aaaaaaa: 0 skills in 1 areas")
+        self.assertEqual((skills.current(self.cfg) / "assistant/access.toml").read_text(), 'clients = ["merlin"]\n')
+
     def test_same_commit_changes_nothing(self):
         self.sync(FakeGit())
         self.assertEqual(self.sync(FakeGit()), "skills are up to date (aaaaaaa)")
