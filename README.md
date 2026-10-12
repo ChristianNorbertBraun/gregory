@@ -55,7 +55,7 @@ agent-skills/                 a private repository of yours
 
 Gregory fetches one branch with a read-only deploy key, checks the tree (no links, an `access.toml`
 per area, a `SKILL.md` per skill, size limits) and publishes a plain copy as
-`/srv/agent-skills/current/<area>/<skill>`. A tree that fails the check is not published. Your
+`/srv/agent-skills/current/<area>/<skill>` (a real folder, so a long-running agent keeps seeing the newest version). A tree that fails the check is not published. Your
 agents can load the very same folders as their own skills (for Hermes: `skills.external_dirs`), so
 there is one source. To change a skill, change the repository: with a coding agent that opens a
 pull request, that works from a phone. `examples/check-skills.py` is the same check for the

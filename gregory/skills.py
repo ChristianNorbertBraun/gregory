@@ -7,10 +7,11 @@ Layout of that repository:
     <area>/<skill>/SKILL.md   the skill, in the common SKILL.md format, with any files next to it
 
 Files at the top level (a README, a check script) and hidden entries are ignored. `sync` fetches a
-branch with a read-only deploy key, checks the tree, publishes a copy without links below
-`[skills] dir` as versions/<commit> and then points `current` at it in one step. A tree that fails
-the check is not published: the old one stays. The published copy is plain files, so the agents
-can load the same skills from `<dir>/current/<area>`.
+branch with a read-only deploy key, checks the tree and replaces the folder `<[skills] dir>/current`
+with a copy that has no links. A tree that fails the check is not published: the old one stays.
+The published copy is plain files, so the agents can load the same skills from
+`<dir>/current/<area>`. `current` is a real folder on purpose, not a link to a version: a
+long-running agent resolves the path once and would keep reading the old version behind a link.
 """
 from __future__ import annotations
 
@@ -31,7 +32,6 @@ from .config import NAME_RE, SkillsConfig
 MAX_FILES = 2000
 MAX_BYTES = 100 * 1024 * 1024
 MAX_SKILL_BYTES = 10 * 1024 * 1024
-KEEP = 3
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 
 
@@ -185,39 +185,42 @@ def _sync(cfg: SkillsConfig, key: Path, state: Path, run) -> str:
         sha = _git(["rev-parse", "HEAD"], key, fetch, run).stdout.strip()
         if not SHA_RE.fullmatch(sha):
             raise SkillsError("the fetched repository has no commit")
-        versions = cfg.dir / "versions"
+        live, mark = current(cfg), state / "skills-commit"
         try:
-            if current(cfg).resolve().name == sha and (versions / sha).is_dir():
+            if mark.read_text().strip() == sha and live.is_dir() and not live.is_symlink():
                 return f"skills are up to date ({sha[:7]})"
         except OSError:
             pass
         found = read(fetch)
         # every area is published, also one without a skill yet: an agent may already point at its folder
         areas = sorted(d.name for d in fetch.iterdir() if d.is_dir() and not d.name.startswith("."))
-        target, tmp = versions / sha, versions / f".{sha}.{os.getpid()}"
+        new, old = cfg.dir / f".new.{os.getpid()}", cfg.dir / f".old.{os.getpid()}"
         try:
-            versions.mkdir(parents=True, exist_ok=True, mode=0o755)
-            shutil.rmtree(tmp, ignore_errors=True)
-            tmp.mkdir(mode=0o755)
+            for leftover in (*cfg.dir.glob(".new.*"), *cfg.dir.glob(".old.*")):  # of a run that was killed
+                shutil.rmtree(leftover, ignore_errors=True)
+            new.mkdir(mode=0o755)
             budget = safecopy.Budget(MAX_FILES, MAX_BYTES)
             for area in areas:
-                safecopy.copy(fetch, area, tmp / area, budget)
-            shutil.rmtree(target, ignore_errors=True)
-            os.replace(tmp, target)
-            link = cfg.dir / f".current.{os.getpid()}"
-            link.unlink(missing_ok=True)
-            os.symlink(f"versions/{sha}", link)
-            os.replace(link, current(cfg))
+                safecopy.copy(fetch, area, new / area, budget)
+            if live.is_symlink():
+                live.unlink()  # layout of 0.1.x: a link to versions/<commit>
+            elif live.exists():
+                os.rename(live, old)
+            try:
+                os.rename(new, live)  # two renames: the folder is missing for an instant, never half written
+            except OSError:
+                if old.exists():
+                    os.rename(old, live)
+                raise
+            mark.write_text(sha + "\n")
         except safecopy.CopyRefused as e:
             raise SkillsError(str(e)) from None
         except OSError:
             raise SkillsError("the skills could not be written to the published folder") from None
         finally:
-            shutil.rmtree(tmp, ignore_errors=True)
-        old = sorted((v for v in versions.iterdir() if v.is_dir() and v.name != sha and SHA_RE.fullmatch(v.name)),
-                     key=lambda v: v.stat().st_mtime, reverse=True)
-        for v in old[KEEP - 1:]:
-            shutil.rmtree(v, ignore_errors=True)
+            shutil.rmtree(new, ignore_errors=True)
+            shutil.rmtree(old, ignore_errors=True)
+        shutil.rmtree(cfg.dir / "versions", ignore_errors=True)
         return f"skills updated to {sha[:7]}: {len(found)} skills in {len(areas)} areas"
     finally:
         shutil.rmtree(fetch, ignore_errors=True)
