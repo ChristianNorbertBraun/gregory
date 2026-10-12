@@ -160,13 +160,14 @@ class SyncTests(Temp):
     def sync(self, git):
         return skills.sync(self.cfg, self.key, self.state, run=git, clock=lambda: 0)
 
-    def test_publishes_a_checked_copy_and_switches_to_it(self):
+    def test_publishes_a_checked_copy_as_a_real_folder(self):
         git = FakeGit()
         self.assertEqual(self.sync(git), "skills updated to aaaaaaa: 2 skills in 2 areas")
         current = skills.current(self.cfg)
-        self.assertEqual(os.readlink(current), f"versions/{SHA_A}")
+        self.assertTrue(current.is_dir() and not current.is_symlink())  # agents resolve the path once: it must stay valid
         self.assertEqual((current / "podcast/shownotes/references/examples.md").read_text(), "example\n")
         self.assertFalse((current / "README.md").exists())  # only the areas are published
+        self.assertEqual(sorted(p.name for p in self.cfg.dir.iterdir()), ["current"])
         self.assertFalse((self.state / "skills-fetch").exists())
         self.assertIn("skills updated to aaaaaaa", skills.status(self.state))
         clone, env = git.calls[0]
@@ -188,23 +189,32 @@ class SyncTests(Temp):
         with self.assertRaises(SkillsError) as e:
             self.sync(FakeGit(files={"podcast/shownotes/SKILL.md": "x"}, sha=SHA_B))
         self.assertIn("needs an access.toml", str(e.exception))
-        self.assertEqual(os.readlink(skills.current(self.cfg)), f"versions/{SHA_A}")
-        self.assertFalse((self.cfg.dir / "versions" / SHA_B).exists())
+        self.assertEqual((skills.current(self.cfg) / "dev/review/SKILL.md").read_text(), "# Review\n")
+        self.assertEqual(sorted(p.name for p in self.cfg.dir.iterdir()), ["current"])
         self.assertIn("failed:", skills.status(self.state))
+        self.assertEqual(self.sync(FakeGit()), "skills are up to date (aaaaaaa)")
 
     def test_a_failed_fetch_shows_no_details(self):
         with self.assertRaises(SkillsError) as e:
             self.sync(FakeGit(fail=True))
         self.assertNotIn("secret", str(e.exception))
 
-    def test_a_new_commit_replaces_the_old_and_old_versions_are_pruned(self):
+    def test_a_new_commit_replaces_the_folder_under_the_same_path(self):
         self.sync(FakeGit())
-        for i, sha in enumerate(("c" * 40, "d" * 40, "e" * 40, SHA_B)):
-            self.sync(FakeGit(files={**GOOD, "dev/review/SKILL.md": f"v{i}"}, sha=sha))
-        self.assertEqual(os.readlink(skills.current(self.cfg)), f"versions/{SHA_B}")
-        self.assertEqual((skills.current(self.cfg) / "dev/review/SKILL.md").read_text(), "v3")
-        self.assertEqual(len(list((self.cfg.dir / "versions").iterdir())), skills.KEEP)
+        resolved = (skills.current(self.cfg) / "dev").resolve()  # what a long-running agent remembers
+        self.sync(FakeGit(files={"dev/access.toml": 'clients = ["anton"]\n', "dev/review/SKILL.md": "v2", "dev/new/SKILL.md": "n"}, sha=SHA_B))
+        self.assertEqual((resolved / "review/SKILL.md").read_text(), "v2")
+        self.assertTrue((resolved / "new/SKILL.md").is_file())
+        self.assertFalse((skills.current(self.cfg) / "podcast").exists())  # a removed area is gone
+        self.assertEqual(sorted(p.name for p in self.cfg.dir.iterdir()), ["current"])
 
+    def test_the_link_layout_of_the_first_versions_is_replaced(self):
+        (self.cfg.dir / "versions" / SHA_A / "dev").mkdir(parents=True)
+        os.symlink(f"versions/{SHA_A}", self.cfg.dir / "current")
+        self.sync(FakeGit(sha=SHA_B))
+        current = skills.current(self.cfg)
+        self.assertTrue(current.is_dir() and not current.is_symlink())
+        self.assertEqual(sorted(p.name for p in self.cfg.dir.iterdir()), ["current"])
 
 class CheckScriptTests(Temp):
     """examples/check-skills.py is a copy of the rules for the skills repository itself: both must agree."""
