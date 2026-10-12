@@ -192,13 +192,15 @@ def _sync(cfg: SkillsConfig, key: Path, state: Path, run) -> str:
         except OSError:
             pass
         found = read(fetch)
+        # every area is published, also one without a skill yet: an agent may already point at its folder
+        areas = sorted(d.name for d in fetch.iterdir() if d.is_dir() and not d.name.startswith("."))
         target, tmp = versions / sha, versions / f".{sha}.{os.getpid()}"
         try:
             versions.mkdir(parents=True, exist_ok=True, mode=0o755)
             shutil.rmtree(tmp, ignore_errors=True)
             tmp.mkdir(mode=0o755)
             budget = safecopy.Budget(MAX_FILES, MAX_BYTES)
-            for area in sorted({s.area for s in found}):
+            for area in areas:
                 safecopy.copy(fetch, area, tmp / area, budget)
             shutil.rmtree(target, ignore_errors=True)
             os.replace(tmp, target)
@@ -216,6 +218,6 @@ def _sync(cfg: SkillsConfig, key: Path, state: Path, run) -> str:
                      key=lambda v: v.stat().st_mtime, reverse=True)
         for v in old[KEEP - 1:]:
             shutil.rmtree(v, ignore_errors=True)
-        return f"skills updated to {sha[:7]}: {len(found)} skills in {len({s.area for s in found})} areas"
+        return f"skills updated to {sha[:7]}: {len(found)} skills in {len(areas)} areas"
     finally:
         shutil.rmtree(fetch, ignore_errors=True)
