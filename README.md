@@ -83,7 +83,7 @@ A new kind of model is one class in `gregory/backends.py`.
 Needs Python 3.11+, bubblewrap, git and systemd. Standard library only.
 
 1. `sudo bash setup/root-setup.sh <agent-user> <client> [<client> ...]` creates the user `gregory` and the two shared folders.
-2. As `gregory`: unpack a release to `~/releases/<version>`, link `~/current` to it, install Claude Code (`~/.local/bin/claude`).
+2. As `gregory`: install the first release with agent-tool-selfupdate ("First installation" in its README: it fills `~/releases/<version>+u<library>` and links `~/current`), install Claude Code (`~/.local/bin/claude`).
 3. `setup/set-claude-token.sh` stores the token from `claude setup-token`.
 4. `setup/new-client-token.sh <client>` creates a client's bearer token.
 5. Write `~/.config/gregory/config.toml` (see `examples/config.toml`), run `python3 -m gregory config-check --strict`.
@@ -95,10 +95,20 @@ Try it without an agent: `echo "What is 2+2?" | python3 -m gregory ask`.
 
 ## Updates
 
-Like its siblings: a release on GitHub (tag `vX.Y.Z`) published by the login in `[update]` is
-downloaded, its tests run in a sandbox without access to the home, the config is checked with the
-new code, `~/current` is switched in one step, the service restarts, and it rolls back if the new
-version does not come up.
+Like its siblings, with [agent-tool-selfupdate](https://github.com/ChristianNorbertBraun/agent-tool-selfupdate): a release on GitHub
+(tag `vX.Y.Z`) published by the login in `[update]` is downloaded together with the newest release of the library
+that `selfupdate.toml` allows (`~=1.0`), the tests of both run in a sandbox without access to the home, the new
+updater must still find the releases, the config is checked with the new code, `~/current` is switched in one step,
+the service restarts, and it rolls back if the new version does not come up. A new library release alone is an
+update too. An installation from before 0.2.0 gets the library once by hand (see "First installation" there).
+
+Tests: `python3 -m unittest discover -s tests`. The update adapter's tests need the library next to the package
+(in `.gitignore`) and are skipped without it:
+
+```
+d=$(mktemp -d) && curl -fsSL https://github.com/ChristianNorbertBraun/agent-tool-selfupdate/archive/refs/tags/v1.0.0.tar.gz | tar xz -C "$d" --strip-components=1
+PYTHONPATH="$d" python3 -m agent_tool_selfupdate fetch --publisher ChristianNorbertBraun --into .
+```
 
 ## Limits and things to know
 
