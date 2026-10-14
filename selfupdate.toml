@@ -1,0 +1,8 @@
+# How agent-tool-selfupdate installs this project (see https://github.com/ChristianNorbertBraun/agent-tool-selfupdate).
+package = "gregory"
+service = "gregory.service"
+state = ".local/state/gregory"
+
+[library]
+repo = "ChristianNorbertBraun/agent-tool-selfupdate"
+version = "~=1.0"

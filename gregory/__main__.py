@@ -37,12 +37,12 @@ def cmd_serve(_: argparse.Namespace) -> int:
     port = config.load_port(paths.config)
     skills_cfg = config.load_skills(paths.config)
     bridge = Bridge(_asker(paths), update=config.load_update(paths.config),
-                    last_result=lambda: updater.last_result(updater.Layout(state_dir=paths.state)),
+                    last_result=lambda: updater.last_result(paths.state),
                     skills=skills_cfg,
                     sync_skills=(lambda: skills.sync(skills_cfg, paths.skills_key, paths.state)) if skills_cfg else None,
                     skills_status=lambda: skills.status(paths.state))
     server = serve(bridge, tokens, port)
-    updater.mark_running(updater.Layout(state_dir=paths.state))
+    updater.mark_running(paths.state)
     print(f"gregory {__version__} on 127.0.0.1:{port} for {', '.join(sorted(tokens))}")
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -102,28 +102,29 @@ def cmd_sync_skills(_: argparse.Namespace) -> int:
 
 
 def cmd_update(a: argparse.Namespace) -> int:
+    """Install the newest release published by you on GitHub (see [update] in config.toml), together with the
+    newest agent-tool-selfupdate that selfupdate.toml allows."""
     paths = config.Paths.default()
     cfg = config.load_update(paths.config)
     if cfg is None:
         print("update is off: add an [update] section (repo, publisher) to config.toml", file=sys.stderr)
         return 2
     try:
-        release = updater.find_release(cfg, to=a.to)
+        p = updater.plan(cfg, to=a.to)
     except updater.UpdateRefused as e:
         print(f"no update: {e}", file=sys.stderr)
         return 1
-    newer = updater.is_newer(release)
-    print(f"installed {__version__}, release {release.tag}{' (newer)' if newer else ''}")
+    print(p.summary())
     if a.check:
-        print(release.notes[:500] if newer else "up to date")
+        print(p.notes(500) if p.newer else "up to date")
         return 0
-    if not (newer or a.force):
+    if not (p.newer or a.force):
         print("nothing to do")
         return 0
-    if not a.yes and input(f"install {release.tag}? [y/N] ").strip().lower() != "y":
+    if not a.yes and input(f"install {p.target}? [y/N] ").strip().lower() != "y":
         return 1
-    result = updater.update(cfg, updater.Layout(state_dir=paths.state), updater.Deps(), to=a.to, force=a.force)
-    return 0 if result.status in ("updated", "current") else 1
+    status = updater.update(cfg, paths.state, to=a.to, force=a.force)
+    return 0 if status in ("updated", "current") else 1
 
 
 def main() -> int:
@@ -143,8 +144,8 @@ def main() -> int:
     up = sub.add_parser("update")
     up.add_argument("--check", action="store_true", help="only say what would be installed")
     up.add_argument("--yes", action="store_true", help="do not ask before installing")
-    up.add_argument("--to", help="install this tag instead of the newest release")
-    up.add_argument("--force", action="store_true", help="also install an older or equal version")
+    up.add_argument("--to", help="install this tag instead of the newest release (only releases with a selfupdate.toml)")
+    up.add_argument("--force", action="store_true", help="also install an older version (never the installed one)")
     up.set_defaults(fn=cmd_update)
     args = parser.parse_args()
     try:

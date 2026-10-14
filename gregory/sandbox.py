@@ -1,8 +1,8 @@
-"""bubblewrap sandbox, used twice: for the unit tests of a downloaded release and for the model.
+"""bubblewrap sandbox for the model. (The unit tests of a downloaded release run in agent-tool-selfupdate's.)
 
-What the sandboxed process sees: the system read-only, a few /etc files, one directory at /work
-(the unpacked release, or the material of one request), a small tmpfs home and /tmp. It does NOT
-see the home of the service user, so the stored credentials are out of reach.
+What the sandboxed process sees: the system read-only, a few /etc files, the material of one request
+read-only at /work, a small tmpfs home and /tmp. It does NOT see the home of the service user, so the
+stored credentials are out of reach.
 """
 from __future__ import annotations
 
@@ -41,11 +41,6 @@ def _base(etc_dir: Path) -> list[str]:
         if src.exists():
             args += ["--ro-bind", str(src), f"/etc/{name}"]
     return args
-
-
-def wrap(cmd: list[str], work: Path, etc_dir: Path = Path("/etc")) -> list[str]:
-    """Prefix `cmd` with a bwrap invocation that only exposes `work` (read-write) and the system (read-only)."""
-    return _base(etc_dir) + ["--bind", str(Path(work).resolve()), WORK, "--chdir", WORK, "--", *cmd]
 
 
 def wrap_model(cmd: list[str], work: Path, binary: Path, etc_dir: Path = Path("/etc")) -> list[str]:

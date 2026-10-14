@@ -4,6 +4,7 @@
 - Run the tests with `python3 -m unittest discover -s tests`. Every change needs a test.
 - Tests must not need the network, not even loopback: sandboxes that run them block connections to 127.0.0.1. Test the HTTP handler directly with a fake connection, as `HttpTest` does.
 - The updater runs these tests inside a bubblewrap sandbox before it installs a release (home `/home/sandbox`, no access to the real home, system read-only). A test that depends on the real home or on files outside the checkout blocks every update.
+- Self-update is agent-tool-selfupdate, installed next to the package and imported only in `gregory/updater.py`. Do not copy it into this repository; `selfupdate.toml` names the version range. Its adapter tests are skipped without it (see README).
 - A change that should reach an installation needs a new version: raise `__version__` in `gregory/version.py` (patch for fixes, minor for a new feature) in the same pull request. The owner publishes the release tag by hand.
 - Gregory has no access of its own. A request may use only what its caller names: a skill the caller is allowed to name and files from the caller's own hand-over folder. Do not add tools, credentials or standing access to other services. The caller is always the holder of the bearer token, never an argument.
 - Foreign material (skills, handed-over files) is copied only through `gregory/safecopy.py`, which never follows a link. Do not read such files with plain `open()` or `shutil`.
